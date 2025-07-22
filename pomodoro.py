@@ -25,8 +25,8 @@ init_db()
 timer_state = {
     'is_running': False,
     'start_time': None,
-    'duration': 25 * 60,  # 25 minutes in seconds
-    'remaining_time': 25 * 60
+    'duration': 2 * 60,  # 25 minutes in seconds
+    'remaining_time': 2 * 60
 }
 
 @app.route('/api/start_timer', methods=['POST'])
