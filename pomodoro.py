@@ -25,7 +25,7 @@ init_db()
 timer_state = {
     'is_running': False,
     'start_time': None,
-    'duration': 2 * 60,  # 25 minutes in seconds
+    'elapsed': 0,  # store the elased value here when the timer pauses
     'remaining_time': 2 * 60
 }
 
@@ -33,7 +33,7 @@ timer_state = {
 def start_timer():
     if not timer_state['is_running']:
         timer_state['is_running'] = True
-        timer_state['start_time'] = time.time()
+        timer_state['start_time'] = time.time()-timer_state['elapsed']
         user_id = request.json.get('user_id', 'default_user')
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
@@ -50,6 +50,7 @@ def pause_timer():
         timer_state['remaining_time'] -= elapsed
         timer_state['is_running'] = False
         timer_state['start_time'] = None
+        timer_state['elapsed'] = elapsed
     return jsonify(timer_state)
 
 @app.route('/api/reset_timer', methods=['POST'])
