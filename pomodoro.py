@@ -52,7 +52,7 @@ def start_timer():
 def pause_timer():
     if timer_state['is_running']:
         elapsed = time.time() - timer_state['start_time']
-        timer_state['remaining_time'] -= elapsed
+        timer_state['remaining_time'] = max(0, 25 * 60 - elapsed)
         timer_state['is_running'] = False
         timer_state['start_time'] = None
         timer_state['paused'] = 1
