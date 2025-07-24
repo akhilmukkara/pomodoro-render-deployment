@@ -34,7 +34,7 @@ def start_timer():
     if not timer_state['is_running']:
         timer_state['is_running'] = True
         if timer_state['paused'] == 1 :
-            timer_state['start_time'] = time.time()-timer_state['remaining_time']
+            timer_state['start_time'] = time.time()- (25 * 60 - timer_state['remaining_time'])
             timer_state['paused'] = 0
         else :
             timer_state['start_time'] = time.time()
