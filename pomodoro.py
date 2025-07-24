@@ -8,29 +8,41 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from Bubble
 
+print("Starting Flask app...")
+
 # Initialize SQLite database
 def init_db():
-    conn = sqlite3.connect('pomodoro.db')
-    c = conn.cursor()
-    
-    # First, check if end_time column exists
-    c.execute("PRAGMA table_info(sessions)")
-    columns = [column[1] for column in c.fetchall()]
-    
-    if 'end_time' not in columns:
-        # Add end_time column if it doesn't exist
-        c.execute('ALTER TABLE sessions ADD COLUMN end_time TEXT')
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS sessions
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id TEXT,
-                  start_time TEXT,
-                  end_time TEXT,
-                  completed INTEGER)''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('pomodoro.db')
+        c = conn.cursor()
+        
+        # Create table first if it doesn't exist
+        c.execute('''CREATE TABLE IF NOT EXISTS sessions
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id TEXT,
+                      start_time TEXT,
+                      completed INTEGER)''')
+        
+        # Then check if end_time column exists and add it
+        c.execute("PRAGMA table_info(sessions)")
+        columns = [column[1] for column in c.fetchall()]
+        
+        if 'end_time' not in columns:
+            c.execute('ALTER TABLE sessions ADD COLUMN end_time TEXT')
+        
+        conn.commit()
+        conn.close()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        raise
 
-init_db()
+try:
+    init_db()
+    print("Database initialization completed")
+except Exception as e:
+    print(f"Failed to initialize database: {e}")
+    exit(1)
 
 # Per-user timer states - each user gets their own timer
 user_timers = {}
