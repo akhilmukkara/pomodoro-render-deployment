@@ -21,38 +21,50 @@ def init_db():
 
 init_db()
 
-# Timer state
-timer_state = {
-    'is_running': False,
-    'start_time': None,
-    'paused': 0,  
-    'remaining_time': 25 * 60
-}
+# Per-user timer states - each user gets their own timer
+user_timers = {}
+
+def get_user_timer(user_id):
+    """Get or create timer state for a specific user"""
+    if user_id not in user_timers:
+        user_timers[user_id] = {
+            'is_running': False,
+            'start_time': None,
+            'paused': 0,  
+            'remaining_time': 25 * 60
+        }
+    return user_timers[user_id]
 
 @app.route('/api/start_timer', methods=['POST'])
 def start_timer():
+    user_id = request.json.get('user_id', 'default_user')
+    timer_state = get_user_timer(user_id)
+    
     if not timer_state['is_running']:
         timer_state['is_running'] = True
-        if timer_state['paused'] == 1 :
-            timer_state['start_time'] = time.time()- (25 * 60 - timer_state['remaining_time'])
+        if timer_state['paused'] == 1:
+            timer_state['start_time'] = time.time() - (25 * 60 - timer_state['remaining_time'])
             timer_state['paused'] = 0
-        else :
+        else:
             timer_state['start_time'] = time.time()
         
-        user_id = request.json.get('user_id', 'default_user')
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
         c.execute("INSERT INTO sessions (user_id, start_time, completed) VALUES (?, ?, ?)",
                 (user_id, datetime.now().isoformat(), 0))
         conn.commit()
         conn.close()
+    
     return jsonify(timer_state)
 
 @app.route('/api/pause_timer', methods=['POST'])
 def pause_timer():
+    user_id = request.json.get('user_id', 'default_user')
+    timer_state = get_user_timer(user_id)
+    
     if timer_state['is_running']:
         elapsed = time.time() - timer_state['start_time']
-        timer_state['remaining_time'] = max(0, (25 * 60 - elapsed +1 ))
+        timer_state['remaining_time'] = max(0, (25 * 60 - elapsed + 1))
         timer_state['is_running'] = False
         timer_state['start_time'] = None
         timer_state['paused'] = 1
@@ -61,27 +73,34 @@ def pause_timer():
 
 @app.route('/api/reset_timer', methods=['POST'])
 def reset_timer():
+    user_id = request.json.get('user_id', 'default_user')
+    timer_state = get_user_timer(user_id)
+    
     timer_state['is_running'] = False
     timer_state['start_time'] = None
     timer_state['paused'] = 0
     timer_state['remaining_time'] = 25 * 60
+    
     return jsonify(timer_state)
 
 @app.route('/api/timer_status', methods=['GET'])
 def timer_status():
+    user_id = request.args.get('user_id', 'default_user')
+    timer_state = get_user_timer(user_id)
+    
     if timer_state['is_running']:
         elapsed = time.time() - timer_state['start_time']
         timer_state['remaining_time'] = max(0, 25 * 60 - elapsed)
         if timer_state['remaining_time'] == 0:
             timer_state['is_running'] = False
             timer_state['start_time'] = None
-            timer_state['elapsed'] = 0
-            # Mark session as completed
+            # Mark session as completed for this specific user
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
-            c.execute("UPDATE sessions SET completed = 1 WHERE completed = 0")
+            c.execute("UPDATE sessions SET completed = 1 WHERE user_id = ? AND completed = 0", (user_id,))
             conn.commit()
             conn.close()
+    
     return jsonify(timer_state)
 
 @app.route('/api/sessions', methods=['GET'])
