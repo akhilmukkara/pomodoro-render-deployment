@@ -11,10 +11,20 @@ CORS(app)  # Allow cross-origin requests from Bubble
 def init_db():
     conn = sqlite3.connect('pomodoro.db')
     c = conn.cursor()
+    
+    # First, check if end_time column exists
+    c.execute("PRAGMA table_info(sessions)")
+    columns = [column[1] for column in c.fetchall()]
+    
+    if 'end_time' not in columns:
+        # Add end_time column if it doesn't exist
+        c.execute('ALTER TABLE sessions ADD COLUMN end_time TEXT')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS sessions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
                   start_time TEXT,
+                  end_time TEXT,
                   completed INTEGER)''')
     conn.commit()
     conn.close()
@@ -76,6 +86,15 @@ def reset_timer():
     user_id = request.json.get('user_id', 'default_user')
     timer_state = get_user_timer(user_id)
     
+    # Mark any running session as incomplete before resetting
+    if timer_state['is_running'] or timer_state['paused'] == 1:
+        conn = sqlite3.connect('pomodoro.db')
+        c = conn.cursor()
+        c.execute("UPDATE sessions SET end_time = ? WHERE user_id = ? AND completed = 0 AND end_time IS NULL", 
+                 (datetime.now().isoformat(), user_id))
+        conn.commit()
+        conn.close()
+    
     timer_state['is_running'] = False
     timer_state['start_time'] = None
     timer_state['paused'] = 0
@@ -94,10 +113,11 @@ def timer_status():
         if timer_state['remaining_time'] == 0:
             timer_state['is_running'] = False
             timer_state['start_time'] = None
-            # Mark session as completed for this specific user
+            # Mark session as completed AND store end time
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
-            c.execute("UPDATE sessions SET completed = 1 WHERE user_id = ? AND completed = 0", (user_id,))
+            c.execute("UPDATE sessions SET completed = 1, end_time = ? WHERE user_id = ? AND completed = 0", 
+                     (datetime.now().isoformat(), user_id))
             conn.commit()
             conn.close()
     
@@ -108,8 +128,8 @@ def get_sessions():
     user_id = request.args.get('user_id', 'default_user')
     conn = sqlite3.connect('pomodoro.db')
     c = conn.cursor()
-    c.execute("SELECT start_time, completed FROM sessions WHERE user_id = ?", (user_id,))
-    sessions = [{'start_time': row[0], 'completed': row[1]} for row in c.fetchall()]
+    c.execute("SELECT start_time, end_time, completed FROM sessions WHERE user_id = ? ORDER BY start_time DESC", (user_id,))
+    sessions = [{'start_time': row[0], 'end_time': row[1], 'completed': row[2]} for row in c.fetchall()]
     conn.close()
     return jsonify(sessions)
 
