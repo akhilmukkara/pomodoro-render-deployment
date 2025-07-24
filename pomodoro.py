@@ -25,8 +25,8 @@ init_db()
 timer_state = {
     'is_running': False,
     'start_time': None,
-    'elapsed': 0,  # store the elapsed value here when the timer pauses
-    'remaining_time': 2 * 60
+    'duration': 0,  
+    'remaining_time': 25 * 60
 }
 
 @app.route('/api/start_timer', methods=['POST'])
@@ -51,7 +51,7 @@ def pause_timer():
         timer_state['remaining_time'] -= elapsed
         timer_state['is_running'] = False
         timer_state['start_time'] = None
-        #timer_state['elapsed'] = elapsed
+    
     return jsonify(timer_state)
 
 @app.route('/api/reset_timer', methods=['POST'])
@@ -65,7 +65,7 @@ def reset_timer():
 def timer_status():
     if timer_state['is_running']:
         elapsed = time.time() - timer_state['start_time']
-        timer_state['remaining_time'] = max(0, 25 * 60 - elapsed)
+        timer_state['remaining_time'] = max(0, timer_state['remaining_time'] - elapsed)
         if timer_state['remaining_time'] == 0:
             timer_state['is_running'] = False
             timer_state['start_time'] = None
