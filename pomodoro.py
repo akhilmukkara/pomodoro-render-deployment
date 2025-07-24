@@ -25,7 +25,7 @@ init_db()
 timer_state = {
     'is_running': False,
     'start_time': None,
-    'duration': 0,  
+    'paused': 0,  
     'remaining_time': 25 * 60
 }
 
@@ -33,8 +33,12 @@ timer_state = {
 def start_timer():
     if not timer_state['is_running']:
         timer_state['is_running'] = True
-        #timer_state['start_time'] = time.time()-timer_state['elapsed']
-        timer_state['start_time'] = time.time()
+        if timer_state['paused'] == 1 :
+            timer_state['start_time'] = time.time()-timer_state['remaining_time']
+            timer_state['paused'] = 0
+        else :
+            timer_state['start_time'] = time.time()
+        
         user_id = request.json.get('user_id', 'default_user')
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
@@ -51,6 +55,7 @@ def pause_timer():
         timer_state['remaining_time'] -= elapsed
         timer_state['is_running'] = False
         timer_state['start_time'] = None
+        timer_state['paused'] = 1
     
     return jsonify(timer_state)
 
@@ -58,6 +63,7 @@ def pause_timer():
 def reset_timer():
     timer_state['is_running'] = False
     timer_state['start_time'] = None
+    timer_state['paused'] = 0
     timer_state['remaining_time'] = 25 * 60
     return jsonify(timer_state)
 
@@ -65,7 +71,7 @@ def reset_timer():
 def timer_status():
     if timer_state['is_running']:
         elapsed = time.time() - timer_state['start_time']
-        timer_state['remaining_time'] = max(0, timer_state['remaining_time'] - elapsed)
+        timer_state['remaining_time'] = max(0, 25 * 60 - elapsed)
         if timer_state['remaining_time'] == 0:
             timer_state['is_running'] = False
             timer_state['start_time'] = None
