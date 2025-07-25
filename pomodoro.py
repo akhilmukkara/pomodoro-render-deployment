@@ -3,7 +3,7 @@ from flask_cors import CORS
 import time
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from Bubble
@@ -36,6 +36,10 @@ def init_db():
     except Exception as e:
         print(f"Database initialization error: {e}")
         raise
+
+# Helper function to get UTC timestamp in ISO format
+def get_utc_timestamp():
+    return datetime.now(timezone.utc).isoformat()
 
 try:
     init_db()
@@ -74,7 +78,7 @@ def start_timer():
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
         c.execute("INSERT INTO sessions (user_id, start_time, completed) VALUES (?, ?, ?)",
-                (user_id, datetime.now().isoformat(), 0))
+                (user_id, get_utc_timestamp(), 0))
         conn.commit()
         conn.close()
     
@@ -104,7 +108,7 @@ def reset_timer():
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
         c.execute("UPDATE sessions SET end_time = ? WHERE user_id = ? AND completed = 0 AND end_time IS NULL", 
-                 (datetime.now().isoformat(), user_id))
+                 (get_utc_timestamp(), user_id))
         conn.commit()
         conn.close()
     
@@ -130,7 +134,7 @@ def timer_status():
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
             c.execute("UPDATE sessions SET completed = 1, end_time = ? WHERE user_id = ? AND completed = 0", 
-                     (datetime.now().isoformat(), user_id))
+                     (get_utc_timestamp(), user_id))
             conn.commit()
             conn.close()
     
