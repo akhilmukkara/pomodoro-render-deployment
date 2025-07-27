@@ -5,18 +5,22 @@ import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests
+CORS(app)
 
-# Per-user timer states (dict keyed by user_id)
+# Per-user timer states
 user_states = {}
 
-# Initialize SQLite database
+# Durations
+DURATIONS = {'work': 25 * 60, 'break': 5 * 60}
+
+# Initialize DB
 def init_db():
     conn = sqlite3.connect('pomodoro.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS sessions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   user_id TEXT,
+                  type TEXT,
                   start_time TEXT,
                   end_time TEXT,
                   completed INTEGER)''')
@@ -31,8 +35,9 @@ def get_user_state(user_id):
             'is_running': False,
             'start_time': None,
             'paused': 0,
-            'remaining_time': 25 * 60,
-            'current_session_id': None
+            'remaining_time': DURATIONS['work'],
+            'current_session_id': None,
+            'type': 'work'  # Start with work
         }
     return user_states[user_id]
 
@@ -45,21 +50,19 @@ def start_timer():
     if not state['is_running']:
         state['is_running'] = True
         if state['paused'] == 1:
-            # Resume: adjust start_time based on remaining
-            state['start_time'] = time.time() - (25 * 60 - state['remaining_time'])
+            state['start_time'] = time.time() - (DURATIONS[state['type']] - state['remaining_time'])
             state['paused'] = 0
         else:
-            # New start: insert session and store ID
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
             start_iso = datetime.now().isoformat()
-            c.execute("INSERT INTO sessions (user_id, start_time, end_time, completed) VALUES (?, ?, ?, ?)",
-                      (user_id, start_iso, None, 0))
+            c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
+                      (user_id, state['type'], start_iso, None, 0))
             state['current_session_id'] = c.lastrowid
             conn.commit()
             conn.close()
             state['start_time'] = time.time()
-            state['remaining_time'] = 25 * 60  # Reset for new session
+            state['remaining_time'] = DURATIONS[state['type']]
 
     return jsonify(state)
 
@@ -71,11 +74,10 @@ def pause_timer():
 
     if state['is_running']:
         elapsed = time.time() - state['start_time']
-        state['remaining_time'] = max(0, 25 * 60 - elapsed)
+        state['remaining_time'] = max(0, DURATIONS[state['type']] - elapsed)
         state['is_running'] = False
         state['start_time'] = None
         state['paused'] = 1
-        # Note: No end_time yet; session is paused, not ended
 
     return jsonify(state)
 
@@ -86,7 +88,6 @@ def reset_timer():
     state = get_user_state(user_id)
 
     if state['current_session_id'] and (state['is_running'] or state['paused']):
-        # Mark current session as incomplete with end_time (aborted)
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
         end_iso = datetime.now().isoformat()
@@ -98,8 +99,9 @@ def reset_timer():
     state['is_running'] = False
     state['start_time'] = None
     state['paused'] = 0
-    state['remaining_time'] = 25 * 60
+    state['remaining_time'] = DURATIONS['work']
     state['current_session_id'] = None
+    state['type'] = 'work'  # Reset to work
 
     return jsonify(state)
 
@@ -110,13 +112,10 @@ def timer_status():
 
     if state['is_running']:
         elapsed = time.time() - state['start_time']
-        state['remaining_time'] = max(0, 25 * 60 - elapsed)
+        state['remaining_time'] = max(0, DURATIONS[state['type']] - elapsed)
         if state['remaining_time'] <= 0:
             state['remaining_time'] = 0
-            state['is_running'] = False
-            state['start_time'] = None
-            state['paused'] = 0
-            # Mark current session as completed with end_time
+            # Complete current session
             if state['current_session_id']:
                 conn = sqlite3.connect('pomodoro.db')
                 c = conn.cursor()
@@ -127,19 +126,39 @@ def timer_status():
                 conn.close()
                 state['current_session_id'] = None
 
+            # Auto-start next type
+            next_type = 'break' if state['type'] == 'work' else 'work'
+            state['type'] = next_type
+            state['remaining_time'] = DURATIONS[next_type]
+            state['start_time'] = time.time()
+            state['is_running'] = True
+            state['paused'] = 0
+
+            # Insert new session for next type
+            conn = sqlite3.connect('pomodoro.db')
+            c = conn.cursor()
+            start_iso = datetime.now().isoformat()
+            c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
+                      (user_id, next_type, start_iso, None, 0))
+            state['current_session_id'] = c.lastrowid
+            conn.commit()
+            conn.close()
+
     return jsonify({
         'is_running': state['is_running'],
-        'remaining_time': state['remaining_time']
-    })  # Only send necessary fields
+        'remaining_time': state['remaining_time'],
+        'type': state['type'],
+        'duration': DURATIONS[state['type']]  // For resume check in JS
+    })
 
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
     user_id = request.args.get('user_id', 'default_user')
     conn = sqlite3.connect('pomodoro.db')
     c = conn.cursor()
-    c.execute("SELECT start_time, end_time, completed FROM sessions WHERE user_id = ? ORDER BY id DESC",
+    c.execute("SELECT start_time, end_time, completed, type FROM sessions WHERE user_id = ? ORDER BY id DESC",
               (user_id,))
-    sessions = [{'start_time': row[0], 'end_time': row[1], 'completed': row[2]} for row in c.fetchall()]
+    sessions = [{'start_time': row[0], 'end_time': row[1], 'completed': row[2], 'type': row[3]} for row in c.fetchall()]
     conn.close()
     return jsonify(sessions)
 
