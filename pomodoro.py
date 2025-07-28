@@ -148,7 +148,7 @@ def timer_status():
         'is_running': state['is_running'],
         'remaining_time': state['remaining_time'],
         'type': state['type'],
-        'duration': DURATIONS[state['type']]  #For resume check in JS
+        'duration': DURATIONS[state['type']]
     })
 
 @app.route('/api/sessions', methods=['GET'])
