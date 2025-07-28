@@ -3,6 +3,7 @@ from flask_cors import CORS
 import time
 import sqlite3
 from datetime import datetime
+import pytz  # Add pytz for timezone handling
 
 app = Flask(__name__)
 CORS(app)
@@ -55,7 +56,7 @@ def start_timer():
         else:
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
-            start_iso = datetime.now().isoformat()
+            start_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
             c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
                       (user_id, state['type'], start_iso, None, 0))
             state['current_session_id'] = c.lastrowid
@@ -90,7 +91,7 @@ def reset_timer():
     if state['current_session_id'] and (state['is_running'] or state['paused']):
         conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
-        end_iso = datetime.now().isoformat()
+        end_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
         c.execute("UPDATE sessions SET end_time = ?, completed = 0 WHERE id = ?",
                   (end_iso, state['current_session_id']))
         conn.commit()
@@ -119,7 +120,7 @@ def timer_status():
             if state['current_session_id']:
                 conn = sqlite3.connect('pomodoro.db')
                 c = conn.cursor()
-                end_iso = datetime.now().isoformat()
+                end_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
                 c.execute("UPDATE sessions SET end_time = ?, completed = 1 WHERE id = ?",
                           (end_iso, state['current_session_id']))
                 conn.commit()
@@ -137,7 +138,7 @@ def timer_status():
             # Insert new session for next type
             conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
-            start_iso = datetime.now().isoformat()
+            start_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
             c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
                       (user_id, next_type, start_iso, None, 0))
             state['current_session_id'] = c.lastrowid
