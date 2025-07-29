@@ -3,7 +3,7 @@ from flask_cors import CORS
 import time
 import sqlite3
 from datetime import datetime
-import pytz  # Add pytz for timezone handling
+import pytz  # For timezone handling
 
 app = Flask(__name__)
 CORS(app)
@@ -11,8 +11,8 @@ CORS(app)
 # Per-user timer states
 user_states = {}
 
-# Durations
-DURATIONS = {'work': 25 * 60, 'break': 5 * 60}
+# Durations (added 'long_break')
+DURATIONS = {'work': 25 * 60, 'break': 5 * 60, 'long_break': 15 * 60}
 
 # Initialize DB
 def init_db():
@@ -38,7 +38,8 @@ def get_user_state(user_id):
             'paused': 0,
             'remaining_time': DURATIONS['work'],
             'current_session_id': None,
-            'type': 'work'  # Start with work
+            'type': 'work',  # Start with work
+            'work_count': 0   # New: Track consecutive completed work sessions
         }
     return user_states[user_id]
 
@@ -103,6 +104,7 @@ def reset_timer():
     state['remaining_time'] = DURATIONS['work']
     state['current_session_id'] = None
     state['type'] = 'work'  # Reset to work
+    state['work_count'] = 0  # Reset work count on reset
 
     return jsonify(state)
 
@@ -127,8 +129,14 @@ def timer_status():
                 conn.close()
                 state['current_session_id'] = None
 
-            # Auto-start next type
-            next_type = 'break' if state['type'] == 'work' else 'work'
+            # Auto-start next type with long break logic
+            if state['type'] == 'work':
+                state['work_count'] += 1
+                next_type = 'long_break' if state['work_count'] >= 4 else 'break'
+                if next_type == 'long_break':
+                    state['work_count'] = 0  # Reset after long break
+            else:
+                next_type = 'work'
             state['type'] = next_type
             state['remaining_time'] = DURATIONS[next_type]
             state['start_time'] = time.time()
