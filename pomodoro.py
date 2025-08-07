@@ -3,7 +3,8 @@ from flask_cors import CORS
 import time
 import sqlite3
 from datetime import datetime
-import pytz  # For timezone handling
+import pytz
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -11,12 +12,12 @@ CORS(app)
 # Per-user timer states
 user_states = {}
 
-# Durations (added 'long_break')
+# Durations
 DURATIONS = {'work': 25 * 60, 'break': 5 * 60, 'long_break': 15 * 60}
 
 # Initialize DB
 def init_db():
-    conn = sqlite3.connect('pomodoro.db')
+    conn = sqlite3.connect('/data/pomodoro.db')  # Use /data for Render persistence
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS sessions
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,8 +39,8 @@ def get_user_state(user_id):
             'paused': 0,
             'remaining_time': DURATIONS['work'],
             'current_session_id': None,
-            'type': 'work',  # Start with work
-            'work_count': 0   # New: Track consecutive completed work sessions
+            'type': 'work',
+            'work_count': 0
         }
     return user_states[user_id]
 
@@ -55,9 +56,9 @@ def start_timer():
             state['start_time'] = time.time() - (DURATIONS[state['type']] - state['remaining_time'])
             state['paused'] = 0
         else:
-            conn = sqlite3.connect('pomodoro.db')
+            conn = sqlite3.connect('/data/pomodoro.db')
             c = conn.cursor()
-            start_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
+            start_iso = datetime.now(pytz.UTC).isoformat()
             c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
                       (user_id, state['type'], start_iso, None, 0))
             state['current_session_id'] = c.lastrowid
@@ -90,9 +91,9 @@ def reset_timer():
     state = get_user_state(user_id)
 
     if state['current_session_id'] and (state['is_running'] or state['paused']):
-        conn = sqlite3.connect('pomodoro.db')
+        conn = sqlite3.connect('/data/pomodoro.db')
         c = conn.cursor()
-        end_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
+        end_iso = datetime.now(pytz.UTC).isoformat()
         c.execute("UPDATE sessions SET end_time = ?, completed = 0 WHERE id = ?",
                   (end_iso, state['current_session_id']))
         conn.commit()
@@ -103,8 +104,8 @@ def reset_timer():
     state['paused'] = 0
     state['remaining_time'] = DURATIONS['work']
     state['current_session_id'] = None
-    state['type'] = 'work'  # Reset to work
-    state['work_count'] = 0  # Reset work count on reset
+    state['type'] = 'work'
+    state['work_count'] = 0
 
     return jsonify(state)
 
@@ -118,23 +119,21 @@ def timer_status():
         state['remaining_time'] = max(0, DURATIONS[state['type']] - elapsed)
         if state['remaining_time'] <= 0:
             state['remaining_time'] = 0
-            # Complete current session
             if state['current_session_id']:
-                conn = sqlite3.connect('pomodoro.db')
+                conn = sqlite3.connect('/data/pomodoro.db')
                 c = conn.cursor()
-                end_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
+                end_iso = datetime.now(pytz.UTC).isoformat()
                 c.execute("UPDATE sessions SET end_time = ?, completed = 1 WHERE id = ?",
                           (end_iso, state['current_session_id']))
                 conn.commit()
                 conn.close()
                 state['current_session_id'] = None
 
-            # Auto-start next type with long break logic
             if state['type'] == 'work':
                 state['work_count'] += 1
                 next_type = 'long_break' if state['work_count'] >= 4 else 'break'
                 if next_type == 'long_break':
-                    state['work_count'] = 0  # Reset after long break
+                    state['work_count'] = 0
             else:
                 next_type = 'work'
             state['type'] = next_type
@@ -143,10 +142,9 @@ def timer_status():
             state['is_running'] = True
             state['paused'] = 0
 
-            # Insert new session for next type
-            conn = sqlite3.connect('pomodoro.db')
+            conn = sqlite3.connect('/data/pomodoro.db')
             c = conn.cursor()
-            start_iso = datetime.now(pytz.UTC).isoformat()  # Store in UTC
+            start_iso = datetime.now(pytz.UTC).isoformat()
             c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
                       (user_id, next_type, start_iso, None, 0))
             state['current_session_id'] = c.lastrowid
@@ -163,7 +161,7 @@ def timer_status():
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
     user_id = request.args.get('user_id', 'default_user')
-    conn = sqlite3.connect('pomodoro.db')
+    conn = sqlite3.connect('/data/pomodoro.db')
     c = conn.cursor()
     c.execute("SELECT start_time, end_time, completed, type FROM sessions WHERE user_id = ? ORDER BY id DESC",
               (user_id,))
@@ -172,4 +170,5 @@ def get_sessions():
     return jsonify(sessions)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(debug=True, host='0.0.0.0', port=port)
