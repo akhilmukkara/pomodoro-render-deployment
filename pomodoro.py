@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Per-user timer states
@@ -23,8 +23,9 @@ DURATIONS = {'work': 25 * 60, 'break': 5 * 60, 'long_break': 15 * 60}
 # Initialize DB
 def init_db():
     try:
-        db_path = '/data/pomodoro.db'  # Persistent disk path
-        os.makedirs('/data', exist_ok=True)  # Ensure /data exists
+        db_path = '/data/pomodoro.db'
+        os.makedirs('/data', exist_ok=True)
+        logger.info("Creating/checking database at %s", db_path)
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS sessions
@@ -41,6 +42,7 @@ def init_db():
         logger.error("Failed to initialize database: %s", e)
         raise
 
+# Run init_db at startup
 try:
     init_db()
 except Exception as e:

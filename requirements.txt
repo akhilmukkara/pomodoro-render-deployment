@@ -1,4 +1,4 @@
-Flask==3.1.1
-flask-cors==6.0.1
-gunicorn==23.0.0
-pytz==2024.2
+Flask==3.0.3  # Downgraded from 3.1.1 for stability
+flask-cors==4.0.1  # Older stable version
+gunicorn==22.0.0  # Downgraded for compatibility
+pytz==2024.1  # Slightly older to match common deployments
