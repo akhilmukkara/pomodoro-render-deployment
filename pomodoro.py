@@ -75,7 +75,7 @@ def start_timer():
                 state['start_time'] = time.time() - (DURATIONS[state['type']] - state['remaining_time'])
                 state['paused'] = 0
             else:
-                conn = sqlite3.connect('/data/pomodoro.db')
+                conn = sqlite3.connect('pomodoro.db')
                 c = conn.cursor()
                 start_iso = datetime.now(pytz.UTC).isoformat()
                 c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
@@ -118,7 +118,7 @@ def reset_timer():
         state = get_user_state(user_id)
 
         if state['current_session_id'] and (state['is_running'] or state['paused']):
-            conn = sqlite3.connect('/data/pomodoro.db')
+            conn = sqlite3.connect('pomodoro.db')
             c = conn.cursor()
             end_iso = datetime.now(pytz.UTC).isoformat()
             c.execute("UPDATE sessions SET end_time = ?, completed = 0 WHERE id = ?",
@@ -151,7 +151,7 @@ def timer_status():
             if state['remaining_time'] <= 0:
                 state['remaining_time'] = 0
                 if state['current_session_id']:
-                    conn = sqlite3.connect('/data/pomodoro.db')
+                    conn = sqlite3.connect('pomodoro.db')
                     c = conn.cursor()
                     end_iso = datetime.now(pytz.UTC).isoformat()
                     c.execute("UPDATE sessions SET end_time = ?, completed = 1 WHERE id = ?",
@@ -173,7 +173,7 @@ def timer_status():
                 state['is_running'] = True
                 state['paused'] = 0
 
-                conn = sqlite3.connect('/data/pomodoro.db')
+                conn = sqlite3.connect('pomodoro.db')
                 c = conn.cursor()
                 start_iso = datetime.now(pytz.UTC).isoformat()
                 c.execute("INSERT INTO sessions (user_id, type, start_time, end_time, completed) VALUES (?, ?, ?, ?, ?)",
@@ -197,7 +197,7 @@ def timer_status():
 def get_sessions():
     try:
         user_id = request.args.get('user_id', 'default_user')
-        conn = sqlite3.connect('/data/pomodoro.db')
+        conn = sqlite3.connect('pomodoro.db')
         c = conn.cursor()
         c.execute("SELECT start_time, end_time, completed, type FROM sessions WHERE user_id = ? ORDER BY id DESC",
                   (user_id,))
