@@ -23,8 +23,8 @@ DURATIONS = {'work': 25 * 60, 'break': 5 * 60, 'long_break': 15 * 60}
 # Initialize DB
 def init_db():
     try:
-        db_path = '/data/pomodoro.db'
-        os.makedirs('/data', exist_ok=True)
+        db_path = 'pomodoro.db'
+        #os.makedirs('/data', exist_ok=True)
         logger.info("Creating/checking database at %s", db_path)
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
