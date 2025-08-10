@@ -39,7 +39,8 @@ def get_user_state(user_id):
             'remaining_time': DURATIONS['work'],
             'current_session_id': None,
             'type': 'work',  # Start with work
-            'work_count': 0   # New: Track consecutive completed work sessions
+            'work_count': 0,   # Track consecutive completed work sessions
+            'sound_event': None  # Track sound event to trigger
         }
     return user_states[user_id]
 
@@ -66,7 +67,11 @@ def start_timer():
             state['start_time'] = time.time()
             state['remaining_time'] = DURATIONS[state['type']]
 
-    return jsonify(state)
+        # Removed sound_event = 'start'
+
+    response = jsonify(state)
+    state['sound_event'] = None  # Clear after sending
+    return response
 
 @app.route('/api/pause_timer', methods=['POST'])
 def pause_timer():
@@ -105,6 +110,7 @@ def reset_timer():
     state['current_session_id'] = None
     state['type'] = 'work'  # Reset to work
     state['work_count'] = 0  # Reset work count on reset
+    state['sound_event'] = None  # Clear sound event
 
     return jsonify(state)
 
@@ -112,6 +118,8 @@ def reset_timer():
 def timer_status():
     user_id = request.args.get('user_id', 'default_user')
     state = get_user_state(user_id)
+
+    sound_event = None  # Local variable for this request
 
     if state['is_running']:
         elapsed = time.time() - state['start_time']
@@ -128,6 +136,14 @@ def timer_status():
                 conn.commit()
                 conn.close()
                 state['current_session_id'] = None
+
+            # Determine sound event based on completed type
+            if state['type'] == 'work':
+                sound_event = 'work_end'
+            elif state['type'] == 'break':
+                sound_event = 'break_end'
+            elif state['type'] == 'long_break':
+                sound_event = 'long_break_end'
 
             # Auto-start next type with long break logic
             if state['type'] == 'work':
@@ -153,12 +169,15 @@ def timer_status():
             conn.commit()
             conn.close()
 
-    return jsonify({
+    response_data = {
         'is_running': state['is_running'],
         'remaining_time': state['remaining_time'],
         'type': state['type'],
-        'duration': DURATIONS[state['type']]
-    })
+        'duration': DURATIONS[state['type']],
+        'sound_event': state['sound_event'] or sound_event  # Include sound event if any
+    }
+    state['sound_event'] = None  # Clear after sending
+    return jsonify(response_data)
 
 @app.route('/api/sessions', methods=['GET'])
 def get_sessions():
